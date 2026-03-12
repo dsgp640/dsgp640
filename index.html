@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Memory Cards</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        body {
+            background: #2c3e50;
+            font-family: Arial, Helvetica, sans-serif;
+            padding: 5px;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .game-box {
+            background: #34495e;
+            border-radius: 20px;
+            padding: 15px 10px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        }
+        
+        .top-bar {
+            background: #2c3e50;
+            border-radius: 40px;
+            padding: 12px 15px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            border: 2px solid #3d5a73;
+        }
+        
+        .title {
+            background: #e67e22;
+            padding: 5px 15px;
+            border-radius: 30px;
+            color: white;
+            font-size: 20px;
+        }
+        
+        .stats {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .stat-item {
+            background: #1e2b38;
+            padding: 5px 12px;
+            border-radius: 20px;
+            color: #f1c40f;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin: 15px 0;
+        }
+        
+        .card {
+            aspect-ratio: 1/1;
+            background: #3498db;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            font-weight: bold;
+            box-shadow: 0 5px 0 #2980b9, 0 5px 10px black;
+            cursor: pointer;
+            border: 2px solid #fff;
+            color: white;
+            transition: all 0.1s;
+        }
+        
+        .card:active {
+            transform: translateY(3px);
+            box-shadow: 0 2px 0 #2980b9, 0 5px 8px black;
+        }
+        
+        .card.flipped {
+            background: #f39c12;
+            box-shadow: 0 5px 0 #e67e22;
+            color: white;
+        }
+        
+        .card.matched {
+            background: #27ae60;
+            box-shadow: 0 5px 0 #229954;
+            color: white;
+            pointer-events: none;
+            opacity: 0.8;
+            transform: scale(0.98);
+        }
+        
+        .card.matched::after,
+        .card.flipped::after {
+            content: attr(data-icon);
+        }
+        
+        .card:not(.flipped):not(.matched)::after {
+            content: "?";
+            font-size: 35px;
+            color: white;
+        }
+        
+        .reset-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 40px;
+            font-size: 22px;
+            font-weight: bold;
+            width: 100%;
+            box-shadow: 0 7px 0 #c0392b;
+            cursor: pointer;
+            border: 2px solid #fff;
+            margin-top: 10px;
+            letter-spacing: 2px;
+        }
+        
+        .reset-btn:active {
+            transform: translateY(5px);
+            box-shadow: 0 2px 0 #c0392b;
+        }
+        
+        @media (max-width: 350px) {
+            .card {
+                font-size: 24px;
+            }
+            .card:not(.flipped):not(.matched)::after {
+                font-size: 28px;
+            }
+            .top-bar {
+                font-size: 14px;
+                padding: 8px 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-box">
+        <div class="top-bar">
+            <div class="title">🧠 MEMORY</div>
+            <div class="stats">
+                <div class="stat-item" id="moves">0</div>
+                <div class="stat-item" id="pairs">0/8</div>
+            </div>
+        </div>
+        
+        <div id="board" class="grid"></div>
+        
+        <button class="reset-btn" id="newGameBtn">🔄 NEW GAME</button>
+    </div>
+
+    <script>
+        // Simple memory game for App Inventor
+        (function() {
+            // Game icons
+            const icons = ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼'];
+            const totalPairs = 8;
+            
+            // Game state
+            let cards = [];
+            let flippedCards = [];
+            let moves = 0;
+            let matched = 0;
+            let lock = false;
+            let timeoutId = null;
+            
+            // Get elements
+            const board = document.getElementById('board');
+            const movesEl = document.getElementById('moves');
+            const pairsEl = document.getElementById('pairs');
+            const newGameBtn = document.getElementById('newGameBtn');
+            
+            // Shuffle array
+            function shuffleArray(arr) {
+                for (let i = arr.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [arr[i], arr[j]] = [arr[j], arr[i]];
+                }
+                return arr;
+            }
+            
+            // Create new deck
+            function createDeck() {
+                let deck = [];
+                for (let i = 0; i < totalPairs; i++) {
+                    deck.push({ icon: icons[i], matched: false, flipped: false });
+                    deck.push({ icon: icons[i], matched: false, flipped: false });
+                }
+                return shuffleArray(deck);
+            }
+            
+            // Update UI
+            function updateBoard() {
+                let html = '';
+                for (let i = 0; i < cards.length; i++) {
+                    let cardClass = 'card';
+                    if (cards[i].matched) cardClass += ' matched';
+                    else if (cards[i].flipped) cardClass += ' flipped';
+                    
+                    html += `<div class="${cardClass}" data-index="${i}" data-icon="${cards[i].icon}"></div>`;
+                }
+                board.innerHTML = html;
+                
+                // Update stats
+                movesEl.textContent = moves;
+                pairsEl.textContent = matched + '/8';
+            }
+            
+            // Reset game
+            function resetGame() {
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                    timeoutId = null;
+                }
+                
+                cards = createDeck();
+                flippedCards = [];
+                moves = 0;
+                matched = 0;
+                lock = false;
+                updateBoard();
+            }
+            
+            // Check win
+            function checkWin() {
+                if (matched === totalPairs) {
+                    setTimeout(() => {
+                        alert('🎉 YOU WIN! 🎉');
+                    }, 200);
+                }
+            }
+            
+            // Handle card click
+            function handleCardClick(e) {
+                const card = e.target.closest('.card');
+                if (!card) return;
+                if (lock) return;
+                
+                const index = parseInt(card.dataset.index);
+                
+                // Can't click matched or already flipped cards
+                if (cards[index].matched || cards[index].flipped) return;
+                
+                // If no cards flipped
+                if (flippedCards.length === 0) {
+                    cards[index].flipped = true;
+                    flippedCards.push(index);
+                    updateBoard();
+                }
+                // If one card flipped
+                else if (flippedCards.length === 1) {
+                    // Can't click same card
+                    if (flippedCards[0] === index) return;
+                    
+                    // Flip second card
+                    cards[index].flipped = true;
+                    flippedCards.push(index);
+                    moves++;
+                    updateBoard();
+                    
+                    // Check match
+                    const firstCard = cards[flippedCards[0]];
+                    const secondCard = cards[flippedCards[1]];
+                    
+                    if (firstCard.icon === secondCard.icon) {
+                        // Match found
+                        firstCard.matched = true;
+                        secondCard.matched = true;
+                        matched++;
+                        
+                        // Clear flipped cards
+                        flippedCards = [];
+                        updateBoard();
+                        checkWin();
+                    } else {
+                        // No match - lock and flip back
+                        lock = true;
+                        
+                        if (timeoutId) clearTimeout(timeoutId);
+                        timeoutId = setTimeout(() => {
+                            // Flip cards back
+                            cards[flippedCards[0]].flipped = false;
+                            cards[flippedCards[1]].flipped = false;
+                            flippedCards = [];
+                            lock = false;
+                            timeoutId = null;
+                            updateBoard();
+                        }, 600);
+                    }
+                }
+            }
+            
+            // Event listeners
+            board.addEventListener('click', handleCardClick);
+            board.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                handleCardClick(e);
+            }, { passive: false });
+            
+            newGameBtn.addEventListener('click', resetGame);
+            newGameBtn.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                resetGame();
+            }, { passive: false });
+            
+            // Start game
+            resetGame();
+        })();
+    </script>
+</body>
+</html>
